@@ -34,28 +34,36 @@ async def send_media(
     duration: int | None = None,
     thumbnail_path: str | None = None,
 ) -> None:
-    path = Path(file_path)
+    path = Path(file_path).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    local_uri = f"file://{path.resolve()}"
+    # Local Bot API reads files from disk; FSInputFile expects a real path, not file:// URI.
+    upload_timeout = 600
 
     if download_type == "audio":
         await bot.send_audio(
             chat_id=chat_id,
-            audio=FSInputFile(local_uri),
+            audio=FSInputFile(path, filename=path.name),
             title=title,
             duration=duration,
+            request_timeout=upload_timeout,
         )
     else:
-        thumb = FSInputFile(thumbnail_path) if thumbnail_path else None
+        thumb = None
+        if thumbnail_path:
+            thumb_path = Path(thumbnail_path).resolve()
+            if thumb_path.is_file():
+                thumb = FSInputFile(thumb_path, filename=thumb_path.name)
+
         await bot.send_video(
             chat_id=chat_id,
-            video=FSInputFile(local_uri),
+            video=FSInputFile(path, filename=path.name),
             caption=title,
             duration=duration,
             thumbnail=thumb,
             supports_streaming=True,
+            request_timeout=upload_timeout,
         )
 
 
