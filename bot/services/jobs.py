@@ -8,6 +8,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 from bot.config import settings
+from bot.utils.formats import normalize_duration
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ async def load_pending(user_id: int) -> PendingDownload | None:
         if not raw:
             return None
         data = json.loads(raw)
+        data["duration"] = normalize_duration(data.get("duration"))
         return PendingDownload(**data)
     finally:
         await r.aclose()

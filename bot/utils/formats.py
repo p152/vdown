@@ -57,6 +57,12 @@ def estimate_best_size_mb(formats: list[dict]) -> float | None:
     return max(sizes) / (1024 * 1024)
 
 
+def normalize_duration(seconds: int | float | None) -> int | None:
+    if seconds is None:
+        return None
+    return int(round(seconds))
+
+
 def format_duration(seconds: int | None) -> str:
     if not seconds:
         return "—"

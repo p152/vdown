@@ -9,6 +9,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import FSInputFile
 
 from bot.config import settings
+from bot.utils.formats import normalize_duration
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,8 @@ async def send_media(
     path = Path(file_path).resolve()
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {file_path}")
+
+    duration = normalize_duration(duration)
 
     # Local Bot API reads files from disk; FSInputFile expects a real path, not file:// URI.
     upload_timeout = 600

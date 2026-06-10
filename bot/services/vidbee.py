@@ -7,6 +7,7 @@ from typing import Any
 import aiohttp
 
 from bot.config import settings
+from bot.utils.formats import normalize_duration
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class VidBeeClient:
             id=video.get("id", ""),
             title=video.get("title", "Без названия"),
             thumbnail=video.get("thumbnail"),
-            duration=video.get("duration"),
+            duration=normalize_duration(video.get("duration")),
             uploader=video.get("uploader"),
             formats=video.get("formats", []),
             webpage_url=video.get("webpageUrl") or video.get("webpage_url"),

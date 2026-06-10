@@ -6,6 +6,7 @@ from typing import Any
 from aiogram.exceptions import TelegramBadRequest
 
 from bot.config import settings
+from bot.utils.formats import normalize_duration
 from bot.services.cookies import sync_cookies_to_vidbee
 from bot.services.jobs import clear_active, redis_settings
 from bot.services.telegram_files import cleanup_file, create_bot, send_media
@@ -74,7 +75,7 @@ async def process_download(ctx: dict[str, Any], job_data: dict[str, Any]) -> dic
     message_id = job_data["message_id"]
     url = job_data["url"]
     title = job_data["title"]
-    duration = job_data.get("duration")
+    duration = normalize_duration(job_data.get("duration"))
     download_type = job_data["download_type"]
     format_string = job_data.get("format_string")
     container = job_data.get("container", "mp4")
