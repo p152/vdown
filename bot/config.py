@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Comma-separated Telegram user IDs allowed to upload cookies
     admin_ids: str = ""
 
+    # Chat ID for bug reports (group or private). Falls back to ADMIN_IDS if empty.
+    feedback_chat_id: int | None = None
+
 
 settings = Settings()
 

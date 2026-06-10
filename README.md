@@ -55,7 +55,19 @@ docker compose logs -f bot worker
 | `MAX_CONCURRENT_DOWNLOADS` | Параллельных загрузок | 3 |
 | `VIDBEE_PROXY` | Прокси для VidBee (опционально) | — |
 | `VIDBEE_COOKIES_PATH` | Путь к cookies.txt в контейнере | `/data/cookies/cookies.txt` |
-| `ADMIN_IDS` | Telegram ID админов для загрузки cookies | — |
+| `ADMIN_IDS` | Telegram ID админов (cookies, /admin) | — |
+| `FEEDBACK_CHAT_ID` | Чат для баг-репортов (иначе — ADMIN_IDS) | — |
+
+## Доступ и админка
+
+1. Укажите свой Telegram ID в `ADMIN_IDS` (узнать: [@userinfobot](https://t.me/userinfobot))
+2. Отправьте боту `/admin` — панель управления доступом
+3. Добавьте пользователей (ID или пересланное сообщение) и группы (ID или кнопка в группе)
+4. После добавления первого пользователя/группы бот работает в режиме **whitelist**
+
+Команды:
+- `/admin` — панель (только админы)
+- `/feedback` или `/bug` — сообщить об ошибке (доступно всем)
 
 ## Instagram
 

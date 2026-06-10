@@ -4,17 +4,12 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from bot.config import admin_id_set, settings
+from bot.access import can_upload_cookies
 from bot.services.cookies import cookies_configured, cookies_file, sync_cookies_to_vidbee
 from bot.services.vidbee import VidBeeClient
 
 router = Router()
 logger = logging.getLogger(__name__)
-
-
-def _is_admin(user_id: int) -> bool:
-    admins = admin_id_set()
-    return not admins or user_id in admins
 
 
 COOKIES_HELP = (
@@ -65,7 +60,7 @@ async def handle_cookies_upload(message: Message) -> None:
     if not message.from_user or not message.document:
         return
 
-    if not _is_admin(message.from_user.id):
+    if not can_upload_cookies(message.from_user.id):
         return
 
     filename = (message.document.file_name or "").lower()
