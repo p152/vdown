@@ -4,6 +4,10 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
+from bot.config import settings
+from bot.db.session import get_session
+from bot.services.users import upsert_user
+
 router = Router()
 logger = logging.getLogger(__name__)
 
@@ -12,8 +16,12 @@ START_TEXT = (
     "Отправьте ссылку на видео с YouTube, TikTok, Instagram, Twitter/X "
     "и 1000+ других сайтов.\n\n"
     "Короткие ролики скачиваются автоматически, для длинных — выберите формат.\n\n"
+    f"🆓 Бесплатно: <b>{settings.free_daily_limit}</b> загрузок в день\n"
+    "⭐ Premium — безлимит: /premium\n\n"
     "Команды:\n"
     "/help — справка\n"
+    "/status — ваш лимит\n"
+    "/premium — купить Premium\n"
     "/feedback — сообщить об ошибке\n"
     "/cookies — настройка Instagram\n"
     "/cancel — отменить загрузку"
@@ -28,12 +36,16 @@ HELP_TEXT = (
     "YouTube, TikTok, Instagram, Twitter/X, VK, Reddit и 1000+ сайтов "
     "(через yt-dlp / VidBee).\n\n"
     "<b>Лимиты</b>\n"
+    "• Бесплатно: несколько загрузок в день (/status)\n"
+    "• Premium: безлимит (/premium)\n"
     "• Максимальный размер файла: до 2 ГБ (local Bot API)\n"
     "• Одна активная загрузка на пользователя\n\n"
     "<b>Instagram</b>\n"
     "Для Instagram нужны cookies — см. /cookies\n\n"
     "<b>Команды</b>\n"
     "/cookies — настройка Instagram\n"
+    "/status — ваш лимит / Premium\n"
+    "/premium — купить Premium\n"
     "/feedback — сообщить об ошибке\n"
     "/cancel — отменить текущую загрузку"
 )
@@ -41,6 +53,14 @@ HELP_TEXT = (
 
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
+    if message.from_user:
+        async with get_session() as session:
+            await upsert_user(
+                session,
+                message.from_user.id,
+                message.from_user.username,
+                message.from_user.first_name,
+            )
     await message.answer(START_TEXT)
 
 

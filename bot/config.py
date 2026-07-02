@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     downloads_dir: str = "/data/downloads"
 
     redis_url: str = "redis://redis:6379/0"
+    database_url: str = "postgresql+asyncpg://vdown:vdown@postgres:5432/vdown"
 
     auto_max_duration_sec: int = 180
     auto_max_size_mb: int = 100
@@ -19,11 +20,17 @@ class Settings(BaseSettings):
     vidbee_proxy: str = ""
     vidbee_cookies_path: str = "/data/cookies/cookies.txt"
 
-    # Comma-separated Telegram user IDs allowed to upload cookies
     admin_ids: str = ""
-
-    # Chat ID for bug reports (group or private). Falls back to ADMIN_IDS if empty.
     feedback_chat_id: int | None = None
+
+    free_daily_limit: int = 5
+
+    crypto_bot_token: str = ""
+    web_base_url: str = "http://localhost:8080"
+
+    jwt_secret: str = "change-me-in-production"
+    admin_web_password: str = ""
+    jwt_expire_hours: int = 24
 
 
 settings = Settings()

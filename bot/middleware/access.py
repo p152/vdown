@@ -13,7 +13,7 @@ from bot.states.feedback import FeedbackStates
 
 logger = logging.getLogger(__name__)
 
-PUBLIC_COMMANDS = frozenset({"/start", "/help", "/feedback", "/bug", "/cancel"})
+PUBLIC_COMMANDS = frozenset({"/start", "/help", "/feedback", "/bug", "/cancel", "/premium", "/status"})
 
 FSM_EXEMPT_STATES = frozenset({
     FeedbackStates.waiting_message.state,

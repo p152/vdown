@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vdown Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg:#0f1117; --card:#1a1d27; --text:#e6e6e6; --muted:#9aa0aa; --accent:#4f8cff; --border:#2a2f3a; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Segoe UI, sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+    nav { display:flex; gap:8px; flex-wrap:wrap; padding:12px 24px; border-bottom:1px solid var(--border); }
+    nav button { background:var(--card); color:var(--text); border:1px solid var(--border); padding:8px 12px; border-radius:8px; cursor:pointer; }
+    nav button.active { background:var(--accent); border-color:var(--accent); }
+    main { padding:24px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:20px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; }
+    .card h3 { margin:0 0 8px; font-size:13px; color:var(--muted); font-weight:500; }
+    .card .value { font-size:28px; font-weight:700; }
+    .charts { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .panel { display:none; }
+    .panel.active { display:block; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { text-align:left; padding:8px; border-bottom:1px solid var(--border); font-size:14px; }
+    input, select { background:#12151c; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px; }
+    .row { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+    #login { max-width:420px; margin:80px auto; }
+    .muted { color:var(--muted); font-size:13px; }
+    @media (max-width:900px) { .charts { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div id="login" class="card">
+    <h2>vdown Admin</h2>
+    <p class="muted">Войдите через Telegram (ADMIN_IDS) или пароль из ADMIN_WEB_PASSWORD</p>
+    <div class="row">
+      <input id="password" type="password" placeholder="Пароль админки" style="flex:1">
+      <button onclick="loginPassword()">Войти</button>
+    </div>
+    <p class="muted">Telegram Login Widget — добавьте bot username в настройках и подключите widget здесь.</p>
+  </div>
+
+  <div id="app" style="display:none">
+    <header>
+      <strong>vdown Admin</strong>
+      <div class="row">
+        <select id="period" onchange="reloadAll()">
+          <option value="1d">Сегодня</option>
+          <option value="7d" selected>7 дней</option>
+          <option value="30d">30 дней</option>
+        </select>
+        <button onclick="logout()">Выйти</button>
+      </div>
+    </header>
+    <nav>
+      <button class="active" data-panel="dashboard" onclick="showPanel('dashboard')">Dashboard</button>
+      <button data-panel="analytics" onclick="showPanel('analytics')">Analytics</button>
+      <button data-panel="reports" onclick="showPanel('reports')">Отчёты</button>
+      <button data-panel="users" onclick="showPanel('users')">Users</button>
+      <button data-panel="plans" onclick="showPanel('plans')">Plans</button>
+      <button data-panel="payments" onclick="showPanel('payments')">Payments</button>
+      <button data-panel="settings" onclick="showPanel('settings')">Settings</button>
+      <button data-panel="whitelist" onclick="showPanel('whitelist')">Whitelist</button>
+    </nav>
+    <main>
+      <section id="panel-dashboard" class="panel active">
+        <div class="grid" id="kpi"></div>
+      </section>
+      <section id="panel-analytics" class="panel">
+        <div class="charts">
+          <div class="card"><canvas id="chartDownloads"></canvas></div>
+          <div class="card"><canvas id="chartRevenue"></canvas></div>
+          <div class="card"><canvas id="chartUsers"></canvas></div>
+          <div class="card"><canvas id="chartDomains"></canvas></div>
+        </div>
+        <div class="grid" id="segments" style="margin-top:16px"></div>
+        <div class="card" style="margin-top:16px"><h3>Система</h3><pre id="systemStats" class="muted"></pre></div>
+      </section>
+      <section id="panel-reports" class="panel">
+        <div class="row">
+          <button onclick="exportUsers()">Скачать CSV</button>
+        </div>
+        <div class="card"><table><thead><tr><th>ID</th><th>User</th><th>Загрузки</th><th>Premium до</th><th>Потрачено</th></tr></thead><tbody id="reportTable"></tbody></table></div>
+      </section>
+      <section id="panel-users" class="panel">
+        <div class="row"><input id="userSearch" placeholder="ID или username"><button onclick="loadUsers()">Поиск</button></div>
+        <div class="card"><table><thead><tr><th>ID</th><th>Username</th><th>Last seen</th><th>Actions</th></tr></thead><tbody id="usersTable"></tbody></table></div>
+      </section>
+      <section id="panel-plans" class="panel">
+        <div class="card"><table><thead><tr><th>ID</th><th>Name</th><th>Days</th><th>Stars</th><th>USDT</th><th>Active</th></tr></thead><tbody id="plansTable"></tbody></table></div>
+      </section>
+      <section id="panel-payments" class="panel">
+        <div class="card"><table><thead><tr><th>ID</th><th>User</th><th>Plan</th><th>Provider</th><th>Amount</th><th>Date</th></tr></thead><tbody id="paymentsTable"></tbody></table></div>
+      </section>
+      <section id="panel-settings" class="panel">
+        <div class="card row">
+          <label>Free daily limit <input id="freeLimit" type="number" min="1"></label>
+          <button onclick="saveSettings()">Сохранить</button>
+        </div>
+      </section>
+      <section id="panel-whitelist" class="panel">
+        <div class="card">
+          <p id="whitelistStatus" class="muted"></p>
+          <div class="row"><input id="wlUserId" placeholder="User ID"><button onclick="addWlUser()">+ User</button></div>
+          <pre id="whitelistData" class="muted"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+let token = localStorage.getItem('vdown_token') || '';
+const charts = {};
+
+function authHeaders() {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api' + path, { ...opts, headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(opts.headers||{}) } });
+  if (res.status === 401) { logout(false); throw new Error('auth'); }
+  return res.json();
+}
+
+async function loginPassword() {
+  const password = document.getElementById('password').value;
+  const data = await fetch('/api/auth/password', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password }) }).then(r=>r.json());
+  if (!data.ok) return alert(data.error || 'Login failed');
+  token = data.token; localStorage.setItem('vdown_token', token); showApp();
+}
+
+function logout(clear=true) {
+  if (clear) localStorage.removeItem('vdown_token');
+  token = ''; document.getElementById('app').style.display='none'; document.getElementById('login').style.display='block';
+}
+
+async function showApp() {
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  await reloadAll();
+}
+
+function period() { return document.getElementById('period').value; }
+
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelector(`nav button[data-panel="${name}"]`).classList.add('active');
+  if (name === 'analytics') loadAnalytics();
+  if (name === 'reports') loadReports();
+  if (name === 'users') loadUsers();
+  if (name === 'plans') loadPlans();
+  if (name === 'payments') loadPayments();
+  if (name === 'settings') loadSettings();
+  if (name === 'whitelist') loadWhitelist();
+}
+
+async function reloadAll() { await loadDashboard(); }
+
+async function loadDashboard() {
+  const d = await api('/dashboard/overview?period=' + period());
+  document.getElementById('kpi').innerHTML = [
+    ['Пользователи', d.users_total, `+${d.users_new} новых`],
+    ['Активные', d.users_active],
+    ['Загрузки OK', d.downloads_ok, `${d.downloads_failed} ошибок`],
+    ['Premium', d.premium_active, `+${d.premium_new}`],
+    ['Stars', d.revenue_stars + ' ⭐'],
+    ['USDT', d.revenue_usdt + ' $'],
+  ].map(([t,v,s]) => `<div class="card"><h3>${t}</h3><div class="value">${v}</div>${s?`<div class="muted">${s}</div>`:''}</div>`).join('');
+}
+
+function makeChart(id, type, labels, datasets) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), { type, data:{ labels, datasets }, options:{ plugins:{ legend:{ labels:{ color:'#e6e6e6' } } }, scales:{ x:{ ticks:{ color:'#9aa0aa' } }, y:{ ticks:{ color:'#9aa0aa' } } } } });
+}
+
+async function loadAnalytics() {
+  const p = period();
+  const [dl, rev, users, domains, seg, sys] = await Promise.all([
+    api('/analytics/charts/downloads?period=' + p),
+    api('/analytics/charts/revenue?period=' + p),
+    api('/analytics/charts/users?period=' + p),
+    api('/analytics/downloads/domains?period=' + p),
+    api('/analytics/users/segments'),
+    api('/analytics/system'),
+  ]);
+  makeChart('chartDownloads','line', dl.labels, [
+    { label:'OK', data:dl.ok, borderColor:'#4f8cff', backgroundColor:'rgba(79,140,255,.2)' },
+    { label:'Failed', data:dl.failed, borderColor:'#ff6b6b', backgroundColor:'rgba(255,107,107,.2)' },
+  ]);
+  makeChart('chartRevenue','bar', rev.labels, [
+    { label:'Stars', data:rev.stars, backgroundColor:'#ffd166' },
+    { label:'USDT', data:rev.usdt, backgroundColor:'#06d6a0' },
+  ]);
+  makeChart('chartUsers','line', users.labels, [
+    { label:'New', data:users.new_users, borderColor:'#8338ec' },
+    { label:'Active', data:users.active, borderColor:'#4f8cff' },
+  ]);
+  makeChart('chartDomains','doughnut', domains.labels, [{ data:domains.values, backgroundColor:['#4f8cff','#ff6b6b','#ffd166','#06d6a0','#8338ec','#fb5607','#3a86ff'] }]);
+  document.getElementById('segments').innerHTML = Object.entries(seg).map(([k,v])=>`<div class="card"><h3>${k}</h3><div class="value">${v}</div></div>`).join('');
+  document.getElementById('systemStats').textContent = JSON.stringify(sys, null, 2);
+}
+
+async function loadReports() {
+  const data = await api('/reports/users?period=' + period());
+  document.getElementById('reportTable').innerHTML = data.items.map(r => `<tr><td>${r.telegram_id}</td><td>${r.username||r.first_name||'-'}</td><td>${r.downloads}</td><td>${r.premium_until||'-'}</td><td>${r.spent}</td></tr>`).join('');
+}
+
+function exportUsers() {
+  fetch('/api/reports/users/export?period=' + period(), { headers: authHeaders() })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'users_report.csv';
+      a.click();
+    });
+}
+
+async function loadUsers() {
+  const q = document.getElementById('userSearch').value;
+  const users = await api('/users?q=' + encodeURIComponent(q));
+  document.getElementById('usersTable').innerHTML = users.map(u => `<tr><td>${u.telegram_id}</td><td>${u.username||'-'}</td><td>${u.last_seen}</td><td><button onclick="grantPremium(${u.telegram_id})">Premium</button> <button onclick="resetLimit(${u.telegram_id})">Reset limit</button></td></tr>`).join('');
+}
+
+async function grantPremium(id) {
+  const planId = prompt('Plan ID (1=7d, 2=30d, 3=365d):', '2');
+  if (!planId) return;
+  await api(`/users/${id}/grant-premium`, { method:'POST', body: JSON.stringify({ plan_id: Number(planId) }) });
+  alert('OK');
+}
+
+async function resetLimit(id) {
+  await api(`/users/${id}/reset-limit`, { method:'POST' });
+  alert('OK');
+}
+
+async function loadPlans() {
+  const plans = await api('/plans');
+  document.getElementById('plansTable').innerHTML = plans.map(p => `<tr><td>${p.id}</td><td>${p.name}</td><td>${p.duration_days}</td><td>${p.price_stars}</td><td>${p.price_usdt}</td><td>${p.is_active}</td></tr>`).join('');
+}
+
+async function loadPayments() {
+  const items = await api('/payments');
+  document.getElementById('paymentsTable').innerHTML = items.map(p => `<tr><td>${p.id}</td><td>${p.username||p.user_id}</td><td>${p.plan}</td><td>${p.provider}</td><td>${p.amount} ${p.currency}</td><td>${p.created_at}</td></tr>`).join('');
+}
+
+async function loadSettings() {
+  const s = await api('/settings');
+  document.getElementById('freeLimit').value = s.free_daily_limit;
+}
+
+async function saveSettings() {
+  await api('/settings', { method:'PATCH', body: JSON.stringify({ free_daily_limit: Number(document.getElementById('freeLimit').value) }) });
+  alert('Saved');
+}
+
+async function loadWhitelist() {
+  const w = await api('/whitelist');
+  document.getElementById('whitelistStatus').textContent = w.active ? 'Whitelist активен' : 'Открытый режим';
+  document.getElementById('whitelistData').textContent = JSON.stringify(w, null, 2);
+}
+
+async function addWlUser() {
+  const id = Number(document.getElementById('wlUserId').value);
+  await api('/whitelist/users', { method:'POST', body: JSON.stringify({ id }) });
+  loadWhitelist();
+}
+
+if (token) showApp().catch(() => logout());
+</script>
+</body>
+</html>

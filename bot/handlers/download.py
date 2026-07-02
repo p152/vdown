@@ -5,7 +5,10 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import settings
+from bot.db.session import get_session
 from bot.keyboards.formats import format_keyboard
+from bot.services.access_facade import check_download_access
+from bot.services.download_logs import start_download_log
 from bot.services.jobs import (
     DownloadJob,
     PendingDownload,
@@ -18,6 +21,7 @@ from bot.services.jobs import (
     set_active,
 )
 from bot.services.cookies import cookies_configured
+from bot.services.users import upsert_user
 from bot.services.vidbee import VidBeeClient, VidBeeError, humanize_error
 from bot.utils.formats import (
     FORMAT_MAP,
@@ -32,6 +36,18 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 vidbee = VidBeeClient()
+
+
+async def _ensure_download_allowed(message: Message, user_id: int, chat_id: int) -> bool:
+    async with get_session() as session:
+        access = await check_download_access(session, user_id, chat_id)
+    if access.allowed:
+        return True
+    await message.answer(
+        f"📊 Сегодня использовано: <b>{access.limit}/{access.limit}</b> загрузок\n\n"
+        "⭐ Premium — безлимит. /premium"
+    )
+    return False
 
 
 def _should_auto_download(duration: int | None, size_mb: float | None) -> bool:
@@ -96,6 +112,17 @@ async def handle_url(message: Message) -> None:
         )
         return
 
+    async with get_session() as session:
+        await upsert_user(
+            session,
+            user_id,
+            message.from_user.username,
+            message.from_user.first_name,
+        )
+
+    if not await _ensure_download_allowed(message, user_id, message.chat.id):
+        return
+
     status_msg = await message.answer("🔍 Получаю информацию о видео...")
 
     try:
@@ -113,6 +140,9 @@ async def handle_url(message: Message) -> None:
     if _should_auto_download(info.duration, size_mb):
         await status_msg.edit_text(f"⬇️ Скачиваю: <b>{info.title}</b>\n\n0%")
         fmt = FORMAT_MAP[FormatChoice.AUTO]
+        async with get_session() as session:
+            log = await start_download_log(session, user_id, url, FormatChoice.AUTO.value)
+            log_id = log.id
         job = DownloadJob(
             user_id=user_id,
             chat_id=message.chat.id,
@@ -125,6 +155,7 @@ async def handle_url(message: Message) -> None:
             download_type=fmt.download_type,
             format_string=fmt.format_string,
             container=fmt.container,
+            log_id=log_id,
         )
         if not await set_active(user_id, "pending"):
             await status_msg.edit_text(
@@ -178,10 +209,20 @@ async def handle_format_choice(callback: CallbackQuery) -> None:
         await callback.answer("Сессия истекла. Отправьте ссылку снова.", show_alert=True)
         return
 
+    if not callback.message:
+        await callback.answer()
+        return
+    if not await _ensure_download_allowed(callback.message, user_id, callback.message.chat.id):
+        await callback.answer("Достигнут дневной лимит", show_alert=True)
+        return
+
     await clear_pending(user_id)
     await callback.answer()
 
     fmt = FORMAT_MAP[format_choice]
+    async with get_session() as session:
+        log = await start_download_log(session, user_id, pending.url, format_choice.value)
+        log_id = log.id
     job = DownloadJob(
         user_id=user_id,
         chat_id=pending.chat_id,
@@ -194,6 +235,7 @@ async def handle_format_choice(callback: CallbackQuery) -> None:
         download_type=fmt.download_type,
         format_string=fmt.format_string,
         container=fmt.container,
+        log_id=log_id,
     )
 
     if not await set_active(user_id, "pending"):

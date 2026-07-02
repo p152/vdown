@@ -4,9 +4,11 @@ import logging
 from aiogram import Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from bot.handlers import admin, cookies, download, feedback, start
+from bot.db.session import get_session, init_db
+from bot.handlers import admin, cookies, download, feedback, premium, start
 from bot.middleware.access import AccessMiddleware
 from bot.services.cookies import cookies_configured, sync_cookies_to_vidbee
+from bot.services.settings_store import seed_defaults
 from bot.services.telegram_files import create_bot
 
 logging.basicConfig(
@@ -17,11 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
+    await init_db()
+    async with get_session() as session:
+        await seed_defaults(session)
+
     bot = create_bot()
 
     dp = Dispatcher(storage=MemoryStorage())
     dp.message.middleware(AccessMiddleware())
     dp.callback_query.middleware(AccessMiddleware())
+    dp.include_router(premium.router)
     dp.include_router(feedback.router)
     dp.include_router(admin.router)
     dp.include_router(start.router)

@@ -41,6 +41,7 @@ class DownloadJob:
     download_type: str
     format_string: str | None
     container: str
+    log_id: int | None = None
 
 
 def redis_settings() -> RedisSettings:
