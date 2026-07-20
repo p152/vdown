@@ -47,7 +47,7 @@ docker compose up -d --build
 docker compose logs -f bot worker api
 ```
 
-Web-админка: **http://localhost:8080**
+Web-админка: **http://localhost:8082** (порт задаётся через `API_PORT` в `.env`)
 
 ## Использование бота
 
@@ -103,7 +103,7 @@ Web-админка: **http://localhost:8080**
 
 ## Web-админка
 
-URL: **http://localhost:8080** (порт `8080`, сервис `api`)
+URL: **http://localhost:8082** (порт `API_PORT`, сервис `api`)
 
 ### Вход
 
@@ -123,7 +123,7 @@ URL: **http://localhost:8080** (порт `8080`, сервис `api`)
 | **Settings** | `free_daily_limit`, режим обслуживания |
 | **Whitelist** | Управление пользователями и группами |
 
-API-документация: **http://localhost:8080/docs**
+API-документация: **http://localhost:8082/docs**
 
 ## Архитектура
 
@@ -131,7 +131,7 @@ API-документация: **http://localhost:8080/docs**
 |--------|------|----------|
 | `bot` | — | aiogram, polling, платежи Stars |
 | `worker` | — | arq, скачивание и отправка файлов |
-| `api` | 8080 | FastAPI, web-админка, Crypto Bot webhook |
+| `api` | 8082 (по умолчанию) | FastAPI, web-админка, Crypto Bot webhook |
 | `postgres` | 5432 (internal) | Пользователи, подписки, платежи, аналитика |
 | `vidbee-api` | 3100 (internal) | yt-dlp через [VidBee](https://github.com/nexmoe/vidbee) |
 | `telegram-bot-api` | 8081 | local Bot API, лимит 2 ГБ |
@@ -180,7 +180,8 @@ Telegram User → bot (aiogram)
 |------------|----------|--------------|
 | `FREE_DAILY_LIMIT` | Бесплатных загрузок в день | 5 |
 | `CRYPTO_BOT_TOKEN` | API token от @CryptoBot | — |
-| `WEB_BASE_URL` | Публичный URL админки (для webhook) | `http://localhost:8080` |
+| `WEB_BASE_URL` | Публичный URL админки (для webhook) | `http://localhost:8082` |
+| `API_PORT` | Порт web-админки на хосте (внутри контейнера — 8080) | `8082` |
 
 ### Web-админка
 
@@ -227,7 +228,34 @@ set JWT_SECRET=dev-secret
 
 python -m bot.main                              # терминал 1
 arq bot.services.queue.WorkerSettings           # терминал 2
-uvicorn api.main:app --reload --port 8080       # терминал 3
+uvicorn api.main:app --reload --port 8082       # терминал 3
+```
+
+## Troubleshooting
+
+### `Bind for 127.0.0.1:8080 failed: port is already allocated`
+
+Порт на хосте занят другим приложением или старым контейнером.
+
+**Вариант 1 — сменить порт vdown** (рекомендуется):
+
+```bash
+# В .env:
+API_PORT=8082
+WEB_BASE_URL=http://localhost:8082
+
+docker compose up -d --build
+```
+
+**Вариант 2 — освободить порт 8080:**
+
+```bash
+docker compose down
+# Windows PowerShell — кто слушает порт:
+netstat -ano | findstr ":8080"
+# Завершить процесс по PID или остановить другой контейнер:
+docker ps --format "table {{.Names}}\t{{.Ports}}"
+docker stop <container_name>
 ```
 
 ## Ограничения

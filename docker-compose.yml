@@ -109,7 +109,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+asyncpg://vdown:${POSTGRES_PASSWORD:-vdown_secret}@postgres:5432/vdown
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8082}:8080"
     depends_on:
       redis:
         condition: service_started
