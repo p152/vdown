@@ -1,58 +1,74 @@
 import logging
+from io import BytesIO
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
 from bot.access import can_upload_cookies
-from bot.services.cookies import cookies_configured, cookies_file, sync_cookies_to_vidbee
-from bot.services.vidbee import VidBeeClient
+from bot.services.cookies_manager import (
+    cookies_configured,
+    cookies_master_path,
+    list_platform_statuses,
+    save_platform_cookies,
+)
+from bot.services.platform_catalog import PLATFORMS
 
 router = Router()
 logger = logging.getLogger(__name__)
 
 
-COOKIES_HELP = (
-    "<b>Instagram cookies</b>\n\n"
-    "Instagram требует cookies для скачивания с сервера.\n\n"
-    "<b>Способ 1 — файл на сервере</b>\n"
-    f"Положите <code>cookies.txt</code> в папку <code>cookies/</code> проекта "
-    "и перезапустите: <code>docker compose restart bot worker vidbee-api</code>\n\n"
-    "<b>Способ 2 — через бота (админ)</b>\n"
-    "Отправьте файл <code>cookies.txt</code> как документ.\n\n"
-    "<b>Как получить cookies.txt</b>\n"
-    "1. Установите расширение «Get cookies.txt LOCALLY» в Chrome/Firefox\n"
-    "2. Зайдите на instagram.com под своим аккаунтом\n"
-    "3. Экспортируйте cookies для instagram.com\n"
-    "4. Отправьте файл боту или скопируйте в <code>cookies/cookies.txt</code>\n\n"
-    "Команды:\n"
-    "/cookies — эта справка\n"
-    "/cookies_status — проверить, загружены ли cookies"
-)
+def _cookies_help() -> str:
+    lines = [
+        "<b>Настройка сервисов (cookies)</b>\n",
+        "Некоторые сайты требуют cookies после входа в аккаунт.\n",
+        "<b>Web-админка → Сервисы</b> — загрузка cookies по платформам.\n",
+        "<b>Через бота (админ):</b> отправьте <code>cookies.txt</code> как документ "
+        "(файл будет применён к Instagram, если содержит instagram.com).\n",
+        "<b>Как получить cookies.txt</b>",
+        "1. Расширение «Get cookies.txt LOCALLY» в Chrome/Firefox",
+        "2. Войдите на сайт (instagram.com, facebook.com, …)",
+        "3. Экспортируйте cookies и загрузите в админку\n",
+        "<b>Статус сервисов:</b>",
+    ]
+    for item in list_platform_statuses():
+        if item["auth"] == "none":
+            icon = "✅"
+        elif item["status"] == "ready":
+            icon = "✅"
+        elif item["auth"] == "cookies":
+            icon = "❌"
+        else:
+            icon = "⚠️"
+        lines.append(f"{icon} {item['name']} — {item['auth']}")
+    lines.append("\n/cookies_status — проверить cookies")
+    return "\n".join(lines)
 
 
 @router.message(Command("cookies"))
 async def cmd_cookies(message: Message) -> None:
-    await message.answer(COOKIES_HELP)
+    await message.answer(_cookies_help())
 
 
 @router.message(Command("cookies_status"))
 async def cmd_cookies_status(message: Message) -> None:
-    path = cookies_file()
-    if cookies_configured():
-        await message.answer(f"✅ Cookies настроены: <code>{path}</code>")
-        return
+    path = cookies_master_path()
+    lines = ["<b>Статус сервисов</b>\n"]
+    for item in list_platform_statuses():
+        if item["auth"] == "none":
+            status = "не требуется"
+        elif item["configured"]:
+            status = "✅ настроено"
+        elif item["auth"] == "cookies":
+            status = "❌ нужны cookies"
+        else:
+            status = "⚠️ опционально"
+        lines.append(f"• <b>{item['name']}</b>: {status}")
     if path.is_file():
-        await message.answer(
-            "⚠️ Файл cookies найден, но не содержит instagram.com cookies.\n"
-            "Экспортируйте cookies именно с instagram.com"
-        )
-        return
-    await message.answer(
-        "❌ Cookies не настроены.\n\n"
-        "Instagram не будет работать без cookies.txt.\n"
-        "Используйте /cookies для инструкции."
-    )
+        lines.append(f"\nФайл: <code>{path}</code>")
+    else:
+        lines.append("\nОбщий cookies.txt ещё не создан.")
+    await message.answer("\n".join(lines))
 
 
 @router.message(F.document)
@@ -70,19 +86,27 @@ async def handle_cookies_upload(message: Message) -> None:
     if not message.bot:
         return
 
-    path = cookies_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
+    buffer = BytesIO()
+    await message.bot.download(message.document, destination=buffer)
+    content = buffer.getvalue().decode("utf-8", errors="ignore")
 
-    await message.bot.download(message.document, destination=path)
+    # Detect platform from content
+    platform_id = "instagram"
+    content_lower = content.lower()
+    for platform in PLATFORMS:
+        if platform.auth == "none":
+            continue
+        if any(d in content_lower for d in platform.domains):
+            platform_id = platform.id
+            break
 
-    if not cookies_configured():
-        await message.answer(
-            "⚠️ Файл сохранён, но instagram.com cookies не найдены.\n"
-            "Убедитесь, что экспортировали cookies с instagram.com"
-        )
+    try:
+        result = await save_platform_cookies(platform_id, content)
+    except ValueError as exc:
+        await message.answer(f"❌ {exc}")
         return
 
-    if await sync_cookies_to_vidbee():
-        await message.answer("✅ Cookies загружены и применены. Можно скачивать Instagram.")
+    if result.get("synced"):
+        await message.answer(f"✅ Cookies для {platform_id} загружены и применены в VidBee.")
     else:
-        await message.answer("❌ Файл сохранён, но не удалось синхронизировать с VidBee.")
+        await message.answer("⚠️ Файл сохранён, но синхронизация с VidBee не удалась.")

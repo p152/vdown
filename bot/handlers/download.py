@@ -20,7 +20,7 @@ from bot.services.jobs import (
     save_pending,
     set_active,
 )
-from bot.services.cookies import cookies_configured
+from bot.services.cookies_manager import is_url_ready
 from bot.services.users import upsert_user
 from bot.services.vidbee import VidBeeClient, VidBeeError, humanize_error
 from bot.utils.formats import (
@@ -105,10 +105,12 @@ async def handle_url(message: Message) -> None:
     url = extract_urls(message.text)[0]
     user_id = message.from_user.id
 
-    if "instagram.com" in url.lower() and not cookies_configured():
+    ready, platform, hint = is_url_ready(url)
+    if not ready and platform:
         await message.answer(
-            "❌ Instagram требует cookies для скачивания.\n\n"
-            "Настройте через /cookies"
+            f"❌ <b>{platform.name}</b> требует авторизацию (cookies).\n\n"
+            f"{hint or ''}\n\n"
+            "Загрузите cookies в web-админке → Сервисы или через /cookies"
         )
         return
 

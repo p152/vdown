@@ -7,7 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from bot.db.session import get_session, init_db
 from bot.handlers import admin, cookies, download, feedback, premium, start
 from bot.middleware.access import AccessMiddleware
-from bot.services.cookies import cookies_configured, sync_cookies_to_vidbee
+from bot.services.cookies_manager import sync_cookies_to_vidbee
 from bot.services.settings_store import seed_defaults
 from bot.services.telegram_files import create_bot
 
@@ -36,11 +36,9 @@ async def main() -> None:
     dp.include_router(download.router)
 
     if await sync_cookies_to_vidbee():
-        logger.info("Instagram cookies synced on startup")
-    elif cookies_configured():
-        logger.warning("Cookies file exists but sync failed")
+        logger.info("Cookies synced to VidBee on startup")
     else:
-        logger.warning("Instagram cookies not configured — see /cookies")
+        logger.warning("Platform cookies not fully configured — see /cookies or admin → Сервисы")
 
     logger.info("Starting vdown bot...")
     try:

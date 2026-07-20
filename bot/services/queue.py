@@ -15,7 +15,7 @@ from bot.services.download_logs import finish_download_log
 from bot.services.subscription import is_premium
 from bot.services.usage import increment_usage
 from bot.utils.formats import normalize_duration
-from bot.services.cookies import sync_cookies_to_vidbee
+from bot.services.cookies_manager import sync_cookies_to_vidbee
 from bot.services.jobs import clear_active, redis_settings
 from bot.services.telegram_files import cleanup_file, create_bot, send_media
 from bot.services.vidbee import VidBeeClient, VidBeeError, humanize_error

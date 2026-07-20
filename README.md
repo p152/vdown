@@ -121,6 +121,7 @@ URL: **http://localhost:8082** (порт `API_PORT`, сервис `api`)
 | **Plans** | CRUD тарифов (Stars / USDT) |
 | **Payments** | История платежей |
 | **Settings** | `free_daily_limit`, режим обслуживания |
+| **Сервисы** | YouTube, Instagram, TikTok… — статус auth, загрузка cookies, proxy VidBee |
 | **Whitelist** | Управление пользователями и группами |
 
 API-документация: **http://localhost:8082/docs**
@@ -201,13 +202,23 @@ Telegram User → bot (aiogram)
 
 В открытом режиме (whitelist пуст) доступен freemium: бесплатный лимит + Premium.
 
-## Instagram
+## Instagram и другие сервисы
 
-Instagram требует cookies. Подробная инструкция: [cookies/README.md](cookies/README.md)
+Некоторые платформы требуют cookies после входа в аккаунт. В **web-админке → Сервисы**:
 
-1. Экспортируйте `cookies.txt` с instagram.com (расширение «Get cookies.txt LOCALLY»)
-2. Положите в `cookies/cookies.txt` или отправьте боту как документ
-3. Проверьте: `/cookies_status`
+| Сервис | Авторизация |
+|--------|-------------|
+| YouTube, TikTok, Reddit | Обычно не нужна |
+| Instagram, Facebook | **Обязательны cookies** |
+| Twitter/X, VK, Twitch | Опционально (для приватного контента) |
+
+1. Экспортируйте `cookies.txt` (расширение «Get cookies.txt LOCALLY»)
+2. В админке → **Сервисы** → «Загрузить cookies» для нужной платформы
+3. Файлы объединяются в один `cookies.txt` и синхронизируются с VidBee
+
+Альтернатива: `/cookies` в боте или файл `cookies/cookies.txt` на сервере.
+
+Подробнее: [cookies/README.md](cookies/README.md)
 
 ## Локальная разработка (без Docker)
 

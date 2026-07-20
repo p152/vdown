@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import analytics, auth, dashboard, feedback, payments, plans, settings, users, webhooks, whitelist
+from api.routes import analytics, auth, dashboard, feedback, payments, plans, services, settings, users, webhooks, whitelist
 from bot.db.session import init_db
 from bot.db.session import get_session
 from bot.services.settings_store import seed_defaults
@@ -42,6 +42,7 @@ app.include_router(users.router, prefix="/api")
 app.include_router(plans.router, prefix="/api")
 app.include_router(payments.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(services.router, prefix="/api")
 app.include_router(whitelist.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
