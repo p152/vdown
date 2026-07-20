@@ -61,11 +61,9 @@ def platform_cookie_file(platform_id: str) -> Path:
 
 
 def list_platform_statuses() -> list[dict]:
-    master = _read_text(cookies_master_path())
-    cookie_domains = _domains_in_content(master)
     items: list[dict] = []
     for platform in PLATFORMS:
-        configured = _platform_has_cookies(platform, cookie_domains)
+        configured = _platform_has_cookies(platform, _platform_cookie_domains(platform))
         if platform.auth == "none":
             status = "ready"
         elif configured:
@@ -97,14 +95,20 @@ def _file_mtime(path: Path) -> str | None:
     return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
 
 
+def _platform_cookie_domains(platform: Platform) -> set[str]:
+    domains = _domains_in_content(_read_text(cookies_master_path()))
+    platform_file = platform_cookie_file(platform.id)
+    if platform_file.is_file():
+        domains |= _domains_in_content(_read_text(platform_file))
+    return domains
+
+
 def is_platform_ready(platform: Platform) -> bool:
     if platform.auth == "none":
         return True
-    master = _read_text(cookies_master_path())
-    cookie_domains = _domains_in_content(master)
     if platform.auth == "optional_cookies":
         return True
-    return _platform_has_cookies(platform, cookie_domains)
+    return _platform_has_cookies(platform, _platform_cookie_domains(platform))
 
 
 def is_url_ready(url: str) -> tuple[bool, Platform | None, str | None]:

@@ -79,11 +79,19 @@ async def handle_url(message: Message) -> None:
     url = extract_urls(message.text)[0]
     user_id = message.from_user.id
 
-    ready, platform, _hint = is_url_ready(url)
+    ready, platform, hint = is_url_ready(url)
     if not ready and platform:
-        await message.answer(
-            f"❌ <b>{platform.name}</b> сейчас недоступен.\n\n"
+        lines = [
+            f"❌ <b>{platform.name}</b> сейчас недоступен.",
+            "",
             "Попробуйте другой сервис или откройте «Поддержка» в меню.",
+        ]
+        if hint:
+            lines.insert(1, hint)
+            lines.insert(2, "")
+            lines.append("Админка → <b>Сервисы</b>: загрузите cookies и нажмите «Синхронизировать».")
+        await message.answer(
+            "\n".join(lines),
             reply_markup=main_menu_keyboard(),
         )
         return
