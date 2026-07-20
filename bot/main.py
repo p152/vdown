@@ -38,7 +38,7 @@ async def main() -> None:
     if await sync_cookies_to_vidbee():
         logger.info("Cookies synced to VidBee on startup")
     else:
-        logger.warning("Platform cookies not fully configured — see /cookies or admin → Сервисы")
+        logger.warning("Platform cookies not fully configured — admin → Сервисы")
 
     logger.info("Starting vdown bot...")
     try:

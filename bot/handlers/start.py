@@ -23,7 +23,6 @@ START_TEXT = (
     "/status — ваш лимит\n"
     "/premium — купить Premium\n"
     "/feedback — сообщить об ошибке\n"
-    "/cookies — настройка Instagram\n"
     "/cancel — отменить загрузку"
 )
 
@@ -40,10 +39,7 @@ HELP_TEXT = (
     "• Premium: безлимит (/premium)\n"
     "• Максимальный размер файла: до 2 ГБ (local Bot API)\n"
     "• Одна активная загрузка на пользователя\n\n"
-    "<b>Instagram</b>\n"
-    "Для Instagram нужны cookies — см. /cookies\n\n"
     "<b>Команды</b>\n"
-    "/cookies — настройка Instagram\n"
     "/status — ваш лимит / Premium\n"
     "/premium — купить Premium\n"
     "/feedback — сообщить об ошибке\n"

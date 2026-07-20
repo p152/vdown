@@ -298,7 +298,6 @@ def humanize_error(category: str | None, fallback: str | None = None) -> str:
     lower = text.lower()
     if "instagram" in lower and ("empty media" in lower or "cookies" in lower):
         return (
-            "Instagram требует cookies для скачивания.\n"
-            "Настройте через /cookies"
+            "Этот сервис временно недоступен — требуется настройка на стороне сервера."
         )
     return text

@@ -105,12 +105,11 @@ async def handle_url(message: Message) -> None:
     url = extract_urls(message.text)[0]
     user_id = message.from_user.id
 
-    ready, platform, hint = is_url_ready(url)
+    ready, platform, _hint = is_url_ready(url)
     if not ready and platform:
         await message.answer(
-            f"❌ <b>{platform.name}</b> требует авторизацию (cookies).\n\n"
-            f"{hint or ''}\n\n"
-            "Загрузите cookies в web-админке → Сервисы или через /cookies"
+            f"❌ <b>{platform.name}</b> сейчас недоступен.\n\n"
+            "Попробуйте другой сервис или напишите /feedback"
         )
         return
 

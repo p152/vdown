@@ -3,11 +3,10 @@ from io import BytesIO
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, User
 
-from bot.access import can_upload_cookies
+from bot.access import can_upload_cookies, is_admin
 from bot.services.cookies_manager import (
-    cookies_configured,
     cookies_master_path,
     list_platform_statuses,
     save_platform_cookies,
@@ -18,18 +17,20 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
+def _admin_only(user: User) -> bool:
+    return is_admin(user.id)
+
+
 def _cookies_help() -> str:
     lines = [
         "<b>Настройка сервисов (cookies)</b>\n",
-        "Некоторые сайты требуют cookies после входа в аккаунт.\n",
-        "<b>Web-админка → Сервисы</b> — загрузка cookies по платформам.\n",
-        "<b>Через бота (админ):</b> отправьте <code>cookies.txt</code> как документ "
-        "(файл будет применён к Instagram, если содержит instagram.com).\n",
+        "Web-админка → <b>Сервисы</b> — основной способ загрузки.\n",
+        "Через бота: отправьте <code>cookies.txt</code> как документ.\n",
         "<b>Как получить cookies.txt</b>",
-        "1. Расширение «Get cookies.txt LOCALLY» в Chrome/Firefox",
-        "2. Войдите на сайт (instagram.com, facebook.com, …)",
-        "3. Экспортируйте cookies и загрузите в админку\n",
-        "<b>Статус сервисов:</b>",
+        "1. Расширение «Get cookies.txt LOCALLY»",
+        "2. Войдите на сайт и экспортируйте cookies",
+        "3. Загрузите в админку или отправьте файл боту\n",
+        "<b>Статус:</b>",
     ]
     for item in list_platform_statuses():
         if item["auth"] == "none":
@@ -40,17 +41,17 @@ def _cookies_help() -> str:
             icon = "❌"
         else:
             icon = "⚠️"
-        lines.append(f"{icon} {item['name']} — {item['auth']}")
-    lines.append("\n/cookies_status — проверить cookies")
+        lines.append(f"{icon} {item['name']}")
+    lines.append("\n/cookies_status — проверить (только админ)")
     return "\n".join(lines)
 
 
-@router.message(Command("cookies"))
+@router.message(Command("cookies"), F.from_user.func(_admin_only))
 async def cmd_cookies(message: Message) -> None:
     await message.answer(_cookies_help())
 
 
-@router.message(Command("cookies_status"))
+@router.message(Command("cookies_status"), F.from_user.func(_admin_only))
 async def cmd_cookies_status(message: Message) -> None:
     path = cookies_master_path()
     lines = ["<b>Статус сервисов</b>\n"]
@@ -90,7 +91,6 @@ async def handle_cookies_upload(message: Message) -> None:
     await message.bot.download(message.document, destination=buffer)
     content = buffer.getvalue().decode("utf-8", errors="ignore")
 
-    # Detect platform from content
     platform_id = "instagram"
     content_lower = content.lower()
     for platform in PLATFORMS:

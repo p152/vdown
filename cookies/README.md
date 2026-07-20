@@ -29,6 +29,6 @@ docker compose restart bot worker vidbee-api
 
 ## Проверка
 
-В боте: `/cookies_status`
+Статус сервисов — в web-админке → **Сервисы**.
 
 Cookies нужно обновлять периодически (раз в несколько недель), когда Instagram разлогинивает сессию.

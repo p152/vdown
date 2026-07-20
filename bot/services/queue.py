@@ -226,7 +226,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     if await sync_cookies_to_vidbee():
         logger.info("Instagram cookies synced in worker")
     else:
-        logger.warning("Instagram cookies not configured — see /cookies")
+        logger.warning("Platform cookies not configured — admin → Сервисы")
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
