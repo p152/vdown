@@ -60,7 +60,7 @@
       <button data-panel="analytics" onclick="showPanel('analytics')">Analytics</button>
       <button data-panel="reports" onclick="showPanel('reports')">Отчёты</button>
       <button data-panel="users" onclick="showPanel('users')">Users</button>
-      <button data-panel="plans" onclick="showPanel('plans')">Plans</button>
+      <button data-panel="plans" onclick="showPanel('plans')">Тарифы</button>
       <button data-panel="payments" onclick="showPanel('payments')">Payments</button>
       <button data-panel="services" onclick="showPanel('services')">Сервисы</button>
       <button data-panel="settings" onclick="showPanel('settings')">Settings</button>
@@ -91,7 +91,26 @@
         <div class="card"><table><thead><tr><th>ID</th><th>Username</th><th>Last seen</th><th>Actions</th></tr></thead><tbody id="usersTable"></tbody></table></div>
       </section>
       <section id="panel-plans" class="panel">
-        <div class="card"><table><thead><tr><th>ID</th><th>Name</th><th>Days</th><th>Stars</th><th>USDT</th><th>Active</th></tr></thead><tbody id="plansTable"></tbody></table></div>
+        <div class="card">
+          <h3 id="planFormTitle" style="margin-top:0">Новый тариф</h3>
+          <p class="muted">Тарифы отображаются в боте в разделе Premium. Неактивные скрыты от пользователей.</p>
+          <div class="row">
+            <input id="planName" placeholder="Название" style="min-width:140px">
+            <input id="planDays" type="number" min="1" placeholder="Дней">
+            <input id="planStars" type="number" min="0" placeholder="Stars">
+            <input id="planUsdt" type="number" min="0" step="0.01" placeholder="USDT">
+            <input id="planSort" type="number" placeholder="Порядок" style="width:90px">
+            <label class="muted"><input id="planActive" type="checkbox" checked> Активен</label>
+            <button onclick="savePlanForm()">Сохранить</button>
+            <button id="planCancelBtn" onclick="resetPlanForm()" style="display:none">Отмена</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <table>
+            <thead><tr><th>ID</th><th>Название</th><th>Дней</th><th>Stars</th><th>USDT</th><th>Порядок</th><th>Активен</th><th>Использований</th><th>Действия</th></tr></thead>
+            <tbody id="plansTable"></tbody>
+          </table>
+        </div>
       </section>
       <section id="panel-payments" class="panel">
         <div class="card"><table><thead><tr><th>ID</th><th>User</th><th>Plan</th><th>Provider</th><th>Amount</th><th>Date</th></tr></thead><tbody id="paymentsTable"></tbody></table></div>
@@ -245,11 +264,84 @@ async function loadUsers() {
   document.getElementById('usersTable').innerHTML = users.map(u => `<tr><td>${u.telegram_id}</td><td>${u.username||'-'}</td><td>${u.last_seen}</td><td><button onclick="grantPremium(${u.telegram_id})">Premium</button> <button onclick="resetLimit(${u.telegram_id})">Reset limit</button></td></tr>`).join('');
 }
 
+let editingPlanId = null;
+let plansCache = [];
+
+function resetPlanForm() {
+  editingPlanId = null;
+  document.getElementById('planFormTitle').textContent = 'Новый тариф';
+  document.getElementById('planName').value = '';
+  document.getElementById('planDays').value = '';
+  document.getElementById('planStars').value = '';
+  document.getElementById('planUsdt').value = '';
+  document.getElementById('planSort').value = '';
+  document.getElementById('planActive').checked = true;
+  document.getElementById('planCancelBtn').style.display = 'none';
+}
+
+function editPlanById(id) {
+  const plan = plansCache.find(p => p.id === id);
+  if (plan) editPlan(plan);
+}
+
+function editPlan(plan) {
+  editingPlanId = plan.id;
+  document.getElementById('planFormTitle').textContent = 'Редактирование тарифа #' + plan.id;
+  document.getElementById('planName').value = plan.name;
+  document.getElementById('planDays').value = plan.duration_days;
+  document.getElementById('planStars').value = plan.price_stars;
+  document.getElementById('planUsdt').value = plan.price_usdt;
+  document.getElementById('planSort').value = plan.sort_order;
+  document.getElementById('planActive').checked = plan.is_active;
+  document.getElementById('planCancelBtn').style.display = 'inline-block';
+  document.getElementById('planName').focus();
+}
+
+async function savePlanForm() {
+  const name = document.getElementById('planName').value.trim();
+  const duration_days = Number(document.getElementById('planDays').value);
+  const price_stars = Number(document.getElementById('planStars').value || 0);
+  const price_usdt = Number(document.getElementById('planUsdt').value || 0);
+  const sort_order = Number(document.getElementById('planSort').value || 0);
+  const is_active = document.getElementById('planActive').checked;
+
+  if (!name) return alert('Укажите название');
+  if (!duration_days || duration_days < 1) return alert('Длительность должна быть ≥ 1 дня');
+
+  const body = { name, duration_days, price_stars, price_usdt, sort_order, is_active };
+  try {
+    if (editingPlanId) {
+      await api('/plans/' + editingPlanId, { method: 'PATCH', body: JSON.stringify(body) });
+    } else {
+      await api('/plans', { method: 'POST', body: JSON.stringify(body) });
+    }
+    resetPlanForm();
+    loadPlans();
+  } catch (e) {
+    alert('Ошибка сохранения');
+  }
+}
+
+async function deletePlan(id, usageCount) {
+  const msg = usageCount > 0
+    ? 'Тариф уже использовался (' + usageCount + ' раз). Он будет деактивирован, но останется в истории платежей.'
+    : 'Удалить тариф безвозвратно?';
+  if (!confirm(msg)) return;
+  const r = await api('/plans/' + id, { method: 'DELETE' });
+  if (r.deactivated) alert('Тариф деактивирован');
+  else alert('Тариф удалён');
+  loadPlans();
+}
+
 async function grantPremium(id) {
-  const planId = prompt('Plan ID (1=7d, 2=30d, 3=365d):', '2');
+  const plans = await api('/plans');
+  const active = plans.filter(p => p.is_active);
+  if (!active.length) return alert('Нет активных тарифов');
+  const options = active.map(p => `${p.id}: ${p.name} (${p.duration_days} дн.)`).join('\n');
+  const planId = prompt('ID тарифа:\n' + options, String(active[0].id));
   if (!planId) return;
   await api(`/users/${id}/grant-premium`, { method:'POST', body: JSON.stringify({ plan_id: Number(planId) }) });
-  alert('OK');
+  alert('Premium выдан');
 }
 
 async function resetLimit(id) {
@@ -258,8 +350,21 @@ async function resetLimit(id) {
 }
 
 async function loadPlans() {
-  const plans = await api('/plans');
-  document.getElementById('plansTable').innerHTML = plans.map(p => `<tr><td>${p.id}</td><td>${p.name}</td><td>${p.duration_days}</td><td>${p.price_stars}</td><td>${p.price_usdt}</td><td>${p.is_active}</td></tr>`).join('');
+  plansCache = await api('/plans');
+  document.getElementById('plansTable').innerHTML = plansCache.map(p => `<tr>
+    <td>${p.id}</td>
+    <td>${p.name}</td>
+    <td>${p.duration_days}</td>
+    <td>${p.price_stars}</td>
+    <td>${p.price_usdt}</td>
+    <td>${p.sort_order}</td>
+    <td>${p.is_active ? '✅' : '—'}</td>
+    <td>${p.usage_count || 0}</td>
+    <td>
+      <button onclick="editPlanById(${p.id})">Изменить</button>
+      <button onclick="deletePlan(${p.id}, ${p.usage_count || 0})">Удалить</button>
+    </td>
+  </tr>`).join('');
 }
 
 async function loadPayments() {
