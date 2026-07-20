@@ -1,12 +1,12 @@
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import settings
 from bot.db.session import get_session
 from bot.keyboards.formats import format_keyboard
+from bot.keyboards.menu import main_menu_keyboard, paywall_keyboard
 from bot.services.access_facade import check_download_access
 from bot.services.download_logs import start_download_log
 from bot.services.jobs import (
@@ -45,7 +45,8 @@ async def _ensure_download_allowed(message: Message, user_id: int, chat_id: int)
         return True
     await message.answer(
         f"📊 Сегодня использовано: <b>{access.limit}/{access.limit}</b> загрузок\n\n"
-        "⭐ Premium — безлимит. /premium"
+        "⭐ Premium — безлимитные загрузки",
+        reply_markup=paywall_keyboard(),
     )
     return False
 
@@ -70,33 +71,6 @@ def _info_text(title: str, duration: int | None, size_mb: float | None, uploader
     return "\n".join(lines)
 
 
-@router.message(Command("cancel"))
-async def cmd_cancel(message: Message) -> None:
-    if not message.from_user:
-        return
-
-    user_id = message.from_user.id
-    task_id = await get_active_task_id(user_id)
-
-    if not task_id or task_id == "pending":
-        await clear_active(user_id)
-        await message.answer("Нет активной загрузки.")
-        return
-
-    try:
-        cancelled = await vidbee.cancel_download(task_id)
-    except VidBeeError as exc:
-        await message.answer(f"❌ {humanize_error(exc.category, str(exc))}")
-        return
-
-    await clear_active(user_id)
-
-    if cancelled:
-        await message.answer("✅ Загрузка отменена.")
-    else:
-        await message.answer("Загрузка уже завершена или не найдена.")
-
-
 @router.message(F.text.regexp(URL_PATTERN))
 async def handle_url(message: Message) -> None:
     if not message.text or not message.from_user:
@@ -109,7 +83,8 @@ async def handle_url(message: Message) -> None:
     if not ready and platform:
         await message.answer(
             f"❌ <b>{platform.name}</b> сейчас недоступен.\n\n"
-            "Попробуйте другой сервис или напишите /feedback"
+            "Попробуйте другой сервис или откройте «Поддержка» в меню.",
+            reply_markup=main_menu_keyboard(),
         )
         return
 
@@ -160,7 +135,8 @@ async def handle_url(message: Message) -> None:
         )
         if not await set_active(user_id, "pending"):
             await status_msg.edit_text(
-                "⏳ У вас уже есть активная загрузка. Дождитесь завершения или /cancel"
+                "⏳ У вас уже есть активная загрузка.\n\n"
+                "Отмените её через «⏹ Отменить загрузку» в меню (/start)."
             )
             return
         job_id = await enqueue_download(job)
@@ -241,7 +217,8 @@ async def handle_format_choice(callback: CallbackQuery) -> None:
 
     if not await set_active(user_id, "pending"):
         await callback.message.edit_text(
-            "⏳ У вас уже есть активная загрузка. Дождитесь завершения или /cancel"
+            "⏳ У вас уже есть активная загрузка.\n\n"
+            "Отмените её через «⏹ Отменить загрузку» в меню (/start)."
         )
         return
 

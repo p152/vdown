@@ -13,7 +13,9 @@ from bot.states.feedback import FeedbackStates
 
 logger = logging.getLogger(__name__)
 
-PUBLIC_COMMANDS = frozenset({"/start", "/help", "/feedback", "/bug", "/cancel", "/premium", "/status"})
+PUBLIC_COMMANDS = frozenset({"/start"})
+
+PUBLIC_CALLBACKS = frozenset({"menu:main", "menu:feedback"})
 
 FSM_EXEMPT_STATES = frozenset({
     FeedbackStates.waiting_message.state,
@@ -71,6 +73,9 @@ class AccessMiddleware(BaseMiddleware):
         if is_admin(user_id):
             return await handler(event, data)
 
+        if isinstance(event, CallbackQuery) and event.data in PUBLIC_CALLBACKS:
+            return await handler(event, data)
+
         if isinstance(event, Message) and _is_public_command(text):
             return await handler(event, data)
 
@@ -82,7 +87,7 @@ class AccessMiddleware(BaseMiddleware):
         if isinstance(event, Message):
             await event.answer(
                 "🚫 У вас нет доступа к этому боту.\n\n"
-                "Обратитесь к администратору или отправьте /feedback"
+                "Нажмите /start → «Поддержка», чтобы связаться с администратором."
             )
         elif isinstance(event, CallbackQuery):
             await event.answer("Нет доступа к боту", show_alert=True)

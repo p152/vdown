@@ -1,16 +1,16 @@
 import asyncio
 import logging
 
-from aiogram import Dispatcher
+from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 
 from bot.db.session import get_session, init_db
-from bot.handlers import admin, cookies, download, feedback, premium, start
+from bot.handlers import admin, cookies, download, feedback, menu, premium
 from bot.middleware.access import AccessMiddleware
 from bot.services.cookies_manager import sync_cookies_to_vidbee
 from bot.services.settings_store import seed_defaults
 from bot.services.telegram_files import create_bot
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -24,17 +24,17 @@ async def main() -> None:
         await seed_defaults(session)
 
     bot = create_bot()
+    await bot.set_my_commands([BotCommand(command="start", description="Главное меню")])
 
     dp = Dispatcher(storage=MemoryStorage())
     dp.message.middleware(AccessMiddleware())
     dp.callback_query.middleware(AccessMiddleware())
+    dp.include_router(menu.router)
     dp.include_router(premium.router)
     dp.include_router(feedback.router)
     dp.include_router(admin.router)
-    dp.include_router(start.router)
     dp.include_router(cookies.router)
     dp.include_router(download.router)
-
     if await sync_cookies_to_vidbee():
         logger.info("Cookies synced to VidBee on startup")
     else:

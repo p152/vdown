@@ -2,18 +2,16 @@ import json
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
-    InlineKeyboardMarkup,
     LabeledPrice,
     Message,
     PreCheckoutQuery,
 )
 
-from bot.config import settings
 from bot.db.session import get_session
+from bot.keyboards.menu import premium_keyboard
 from bot.services.access_facade import check_download_access
 from bot.services.payments.crypto_bot import create_crypto_invoice
 from bot.services.subscription import activate_subscription, get_plan, list_plans, record_payment
@@ -21,26 +19,6 @@ from bot.services.users import upsert_user
 
 router = Router()
 logger = logging.getLogger(__name__)
-
-
-def _premium_keyboard(plans: list, crypto_links: dict[int, str]) -> InlineKeyboardMarkup:
-    rows = []
-    for plan in plans:
-        row = [
-            InlineKeyboardButton(
-                text=f"⭐ {plan.name} — {plan.price_stars} Stars",
-                callback_data=f"pay:stars:{plan.id}",
-            )
-        ]
-        if plan.id in crypto_links:
-            row.append(
-                InlineKeyboardButton(
-                    text=f"💎 {plan.price_usdt} USDT",
-                    url=crypto_links[plan.id],
-                )
-            )
-        rows.append(row)
-    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 async def _premium_text(session, user_id: int, chat_id: int) -> str:
@@ -57,18 +35,38 @@ async def _premium_text(session, user_id: int, chat_id: int) -> str:
     return "\n".join(lines)
 
 
-@router.message(Command("premium"))
-async def cmd_premium(message: Message) -> None:
-    if not message.from_user:
+def _plan_rows(plans: list, crypto_links: dict[int, str]) -> list[list[InlineKeyboardButton]]:
+    rows: list[list[InlineKeyboardButton]] = []
+    for plan in plans:
+        row = [
+            InlineKeyboardButton(
+                text=f"⭐ {plan.name} — {plan.price_stars} Stars",
+                callback_data=f"pay:stars:{plan.id}",
+            )
+        ]
+        if plan.id in crypto_links:
+            row.append(
+                InlineKeyboardButton(
+                    text=f"💎 {plan.price_usdt} USDT",
+                    url=crypto_links[plan.id],
+                )
+            )
+        rows.append(row)
+    return rows
+
+
+async def _show_premium(callback: CallbackQuery) -> None:
+    if not callback.from_user or not callback.message:
+        await callback.answer()
         return
-    user_id = message.from_user.id
-    chat_id = message.chat.id
+    user_id = callback.from_user.id
+    chat_id = callback.message.chat.id
     async with get_session() as session:
         await upsert_user(
             session,
             user_id,
-            message.from_user.username,
-            message.from_user.first_name,
+            callback.from_user.username,
+            callback.from_user.first_name,
         )
         plans = await list_plans(session)
         crypto_links: dict[int, str] = {}
@@ -78,31 +76,19 @@ async def cmd_premium(message: Message) -> None:
                 if invoice:
                     crypto_links[plan.id] = invoice.get("pay_url", "")
         text = await _premium_text(session, user_id, chat_id)
-    await message.answer(text, reply_markup=_premium_keyboard(plans, crypto_links))
+    markup = premium_keyboard(_plan_rows(plans, crypto_links))
+    from aiogram.exceptions import TelegramBadRequest
+
+    try:
+        await callback.message.edit_text(text, reply_markup=markup)
+    except TelegramBadRequest:
+        await callback.message.answer(text, reply_markup=markup)
+    await callback.answer()
 
 
-@router.message(Command("status"))
-async def cmd_status(message: Message) -> None:
-    if not message.from_user:
-        return
-    user_id = message.from_user.id
-    chat_id = message.chat.id
-    async with get_session() as session:
-        await upsert_user(
-            session,
-            user_id,
-            message.from_user.username,
-            message.from_user.first_name,
-        )
-        status = await check_download_access(session, user_id, chat_id)
-    if status.reason == "premium":
-        text = f"⭐ Premium активен до <b>{status.premium_until}</b>"
-    elif status.reason == "unlimited":
-        text = "✅ Безлимитный доступ"
-    else:
-        used = status.limit - status.remaining
-        text = f"📊 Сегодня: <b>{used}/{status.limit}</b> загрузок"
-    await message.answer(text)
+@router.callback_query(F.data == "menu:premium")
+async def menu_premium(callback: CallbackQuery) -> None:
+    await _show_premium(callback)
 
 
 @router.callback_query(F.data.startswith("pay:stars:"))
@@ -152,6 +138,8 @@ async def pre_checkout(query: PreCheckoutQuery) -> None:
 
 @router.message(F.successful_payment)
 async def successful_payment(message: Message) -> None:
+    from bot.keyboards.menu import main_menu_keyboard
+
     if not message.from_user or not message.successful_payment:
         return
     payment_info = message.successful_payment
@@ -186,4 +174,7 @@ async def successful_payment(message: Message) -> None:
             return
         sub = await activate_subscription(session, user_id, plan, source="stars", payment=pay)
         expires = sub.expires_at.strftime("%d.%m.%Y")
-    await message.answer(f"✅ Premium активирован до <b>{expires}</b>!")
+    await message.answer(
+        f"✅ Premium активирован до <b>{expires}</b>!",
+        reply_markup=main_menu_keyboard(is_admin=False),
+    )
