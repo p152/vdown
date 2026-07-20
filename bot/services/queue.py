@@ -168,7 +168,7 @@ async def process_download(ctx: dict[str, Any], job_data: dict[str, Any]) -> dic
             if log_id:
                 duration_sec = (datetime.utcnow() - started_at).total_seconds()
                 await finish_download_log(session, log_id, "ok", size_mb=size_mb, duration_sec=duration_sec)
-            unlimited = await has_unlimited_access(user_id, chat_id)
+            unlimited = await has_unlimited_access(user_id)
             premium = await is_premium(session, user_id)
             if not unlimited and not premium:
                 await increment_usage(session, user_id)

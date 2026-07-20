@@ -17,7 +17,7 @@ class AccessStatus:
 
 
 async def check_download_access(session: AsyncSession, user_id: int, chat_id: int) -> AccessStatus:
-    if await has_unlimited_access(user_id, chat_id):
+    if await has_unlimited_access(user_id):
         return AccessStatus(allowed=True, reason="unlimited")
 
     if await is_premium(session, user_id):
