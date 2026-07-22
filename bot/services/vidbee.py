@@ -296,8 +296,31 @@ def humanize_error(category: str | None, fallback: str | None = None) -> str:
         return ERROR_MESSAGES[category]
     text = fallback or "Не удалось скачать видео."
     lower = text.lower()
+
     if "instagram" in lower and ("empty media" in lower or "cookies" in lower):
+        return "Этот сервис временно недоступен — требуется настройка на стороне сервера."
+
+    youtube_auth_markers = (
+        "sign in to confirm your age",
+        "inappropriate for some users",
+        "use --cookies",
+        "login required",
+        "members-only",
+        "private video",
+    )
+    if "youtube" in lower and any(m in lower for m in youtube_auth_markers):
         return (
-            "Этот сервис временно недоступен — требуется настройка на стороне сервера."
+            "Видео с возрастным ограничением или приватное.\n\n"
+            "Администратору: загрузите cookies YouTube в админке → "
+            "<b>Сервисы</b> → YouTube → «Загрузить cookies» → «Синхронизировать»."
         )
+
+    if any(m in lower for m in ("sign in", "login required", "cookies-from-browser", "use --cookies")):
+        return (
+            "Для этого видео нужна авторизация на сайте.\n\n"
+            "Администратору: загрузите cookies в админке → <b>Сервисы</b>."
+        )
+
+    if len(text) > 300:
+        return "Не удалось скачать видео. Попробуйте другую ссылку или формат."
     return text

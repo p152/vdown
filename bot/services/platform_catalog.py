@@ -20,8 +20,12 @@ PLATFORMS: tuple[Platform, ...] = (
         id="youtube",
         name="YouTube",
         domains=("youtube.com", "youtu.be", "youtube-nocookie.com"),
-        auth="none",
-        instructions="Обычно работает без настройки. Для age-restricted — загрузите cookies с youtube.com.",
+        auth="optional_cookies",
+        instructions=(
+            "Публичные видео — без настройки. Для age-restricted и приватных — "
+            "cookies с youtube.com (войдите в аккаунт, экспортируйте через "
+            "«Get cookies.txt LOCALLY»)."
+        ),
     ),
     Platform(
         id="tiktok",
