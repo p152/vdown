@@ -10,6 +10,7 @@ from bot.services.vidbee import VidBeeClient
 logger = logging.getLogger(__name__)
 
 _synced_cookies_path: str | None = None
+_last_synced_mtime: float = 0.0
 
 NETSCAPE_HEADER = "# Netscape HTTP Cookie File"
 
@@ -56,6 +57,33 @@ def _platform_has_cookies(platform: Platform, cookie_domains: set[str]) -> bool:
     return False
 
 
+def _normalize_cookie_content(content: str) -> str:
+    """Normalize Netscape cookies: ensure tab-separated fields."""
+    lines: list[str] = []
+    header_seen = False
+    for raw_line in content.splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            continue
+        if line.strip().startswith("#"):
+            if "netscape" in line.lower() and not header_seen:
+                lines.append(NETSCAPE_HEADER)
+                header_seen = True
+            continue
+        if "\t" not in line and line.count(" ") >= 6:
+            # Some exporters use spaces instead of tabs.
+            parts = line.split(None, 6)
+            if len(parts) >= 7:
+                line = "\t".join(parts)
+        if _cookie_line_domain(line):
+            lines.append(line)
+    if not lines:
+        return content.strip()
+    if not header_seen:
+        lines.insert(0, NETSCAPE_HEADER)
+    return "\n".join(lines).strip() + "\n"
+
+
 def platform_cookie_file(platform_id: str) -> Path:
     return platforms_dir() / f"{platform_id}.txt"
 
@@ -83,6 +111,7 @@ def list_platform_statuses() -> list[dict]:
                 "status": status,
                 "has_file": platform_cookie_file(platform.id).is_file(),
                 "updated_at": _file_mtime(platform_cookie_file(platform.id)),
+                "cookie_domains": sorted(_platform_cookie_domains(platform)),
             }
         )
     return items
@@ -131,12 +160,33 @@ def cookies_configured() -> bool:
 
 
 def get_cookies_path() -> str | None:
-    if _synced_cookies_path:
-        return _synced_cookies_path
+    """Shared volume path readable by bot, worker and vidbee-api."""
     path = cookies_master_path()
     if path.is_file() and path.read_text(encoding="utf-8", errors="ignore").strip():
         return str(path)
     return None
+
+
+async def ensure_cookies_synced() -> str | None:
+    """Re-upload cookies to VidBee when the master file changes."""
+    global _last_synced_mtime
+
+    path = cookies_master_path()
+    if not path.is_file():
+        return None
+    content = path.read_text(encoding="utf-8", errors="ignore").strip()
+    if not content:
+        return None
+
+    mtime = path.stat().st_mtime
+    if mtime > _last_synced_mtime:
+        if await sync_cookies_to_vidbee():
+            _last_synced_mtime = mtime
+            logger.info("Cookies re-synced after file update: %s", path)
+        else:
+            logger.warning("Cookies file changed but VidBee sync failed: %s", path)
+
+    return str(path)
 
 
 def _merge_platform_into_master(platform: Platform, platform_content: str) -> str:
@@ -196,8 +246,8 @@ async def save_platform_cookies(platform_id: str, content: str) -> dict:
     if platform.auth == "none":
         raise ValueError("Platform does not require cookies")
 
-    content = content.strip()
-    if not content:
+    content = _normalize_cookie_content(content.strip())
+    if not content.strip():
         raise ValueError("Empty cookies file")
     if len(content.encode("utf-8")) > 500_000:
         raise ValueError("File too large (max 500KB)")
@@ -217,7 +267,12 @@ async def save_platform_cookies(platform_id: str, content: str) -> dict:
     cookies_master_path().write_text(merged, encoding="utf-8")
 
     synced = await sync_cookies_to_vidbee()
-    return {"ok": True, "synced": synced, "platform_id": platform_id}
+    return {
+        "ok": True,
+        "synced": synced,
+        "platform_id": platform_id,
+        "cookie_domains": sorted(cookie_domains),
+    }
 
 
 async def delete_platform_cookies(platform_id: str) -> dict:
@@ -286,6 +341,7 @@ async def sync_cookies_to_vidbee(client: VidBeeClient | None = None) -> bool:
         current["cookiesPath"] = cookies_path
         await client._rpc("settings/set", {"settings": current})
         _synced_cookies_path = cookies_path
+        _last_synced_mtime = path.stat().st_mtime
         logger.info("VidBee cookies synced: %s", cookies_path)
         return True
     except Exception:

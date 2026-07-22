@@ -19,12 +19,14 @@ PLATFORMS: tuple[Platform, ...] = (
     Platform(
         id="youtube",
         name="YouTube",
-        domains=("youtube.com", "youtu.be", "youtube-nocookie.com"),
+        domains=("youtube.com", "youtu.be", "youtube-nocookie.com", "google.com", "accounts.google.com"),
         auth="optional_cookies",
         instructions=(
-            "Публичные видео — без настройки. Для age-restricted и приватных — "
-            "cookies с youtube.com (войдите в аккаунт, экспортируйте через "
-            "«Get cookies.txt LOCALLY»)."
+            "Для age-restricted видео нужны cookies YouTube.\n"
+            "1. Откройте инкогнито → войдите на youtube.com\n"
+            "2. Перейдите на youtube.com/robots.txt\n"
+            "3. Экспортируйте cookies (Get cookies.txt LOCALLY)\n"
+            "4. Закройте инкогнито — не открывайте YouTube в обычном браузере"
         ),
     ),
     Platform(

@@ -108,6 +108,7 @@ services:
     environment:
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql+asyncpg://vdown:${POSTGRES_PASSWORD:-vdown_secret}@postgres:5432/vdown
+      VIDBEE_API_URL: http://vidbee-api:3100
     volumes:
       - ./cookies:/data/cookies
     ports:
@@ -116,6 +117,8 @@ services:
       redis:
         condition: service_started
       postgres:
+        condition: service_healthy
+      vidbee-api:
         condition: service_healthy
 
 volumes:

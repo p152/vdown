@@ -380,7 +380,7 @@ async function loadServices() {
   document.getElementById('servicesTable').innerHTML = data.platforms.map(p => {
     const uploadId = 'upload-' + p.id;
     return `<tr>
-      <td><b>${p.name}</b><br><span class="muted">${p.domains.join(', ')}</span><br><span class="muted">${p.instructions}</span></td>
+      <td><b>${p.name}</b><br><span class="muted">${p.domains.join(', ')}</span><br><span class="muted">${p.instructions.replace(/\n/g, '<br>')}</span>${p.cookie_domains?.length ? `<br><span class="muted">Cookies: ${p.cookie_domains.join(', ')}</span>` : ''}</td>
       <td>${authLabel[p.auth] || p.auth}</td>
       <td class="badge-${p.status === 'ready' ? 'ready' : p.status === 'required' ? 'req' : 'opt'}">${statusLabel[p.status] || p.status}</td>
       <td>
@@ -402,7 +402,8 @@ async function uploadPlatformCookies(platformId, input) {
   const content = await file.text();
   try {
     const r = await api('/services/' + platformId + '/cookies', { method: 'POST', body: JSON.stringify({ content }) });
-    alert(r.synced ? 'Cookies загружены и синхронизированы' : 'Сохранено, синхронизация не удалась');
+    const domains = r.cookie_domains?.length ? '\nДомены: ' + r.cookie_domains.join(', ') : '';
+    alert((r.synced ? 'Cookies загружены и синхронизированы' : 'Сохранено, но синхронизация с VidBee не удалась — нажмите «Синхронизировать»') + domains);
     loadServices();
   } catch (e) { alert('Ошибка загрузки'); }
   input.value = '';

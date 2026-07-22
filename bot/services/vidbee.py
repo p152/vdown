@@ -81,6 +81,17 @@ class VidBeeClient:
             runtime["cookiesPath"] = cookies_path
         return runtime or None
 
+    async def _runtime_settings_async(self) -> dict[str, Any] | None:
+        from bot.services.cookies_manager import ensure_cookies_synced
+
+        runtime: dict[str, Any] = {}
+        if settings.vidbee_proxy:
+            runtime["proxy"] = settings.vidbee_proxy
+        cookies_path = await ensure_cookies_synced()
+        if cookies_path:
+            runtime["cookiesPath"] = cookies_path
+        return runtime or None
+
     async def _rpc(self, path: str, payload: dict[str, Any] | None = None) -> Any:
         session = await self._get_session()
         url = f"{self.base_url}/rpc/{path.lstrip('/')}"
@@ -94,7 +105,7 @@ class VidBeeClient:
 
     async def get_video_info(self, url: str) -> VideoInfo:
         payload: dict[str, Any] = {"url": url}
-        settings_payload = self._runtime_settings()
+        settings_payload = await self._runtime_settings_async()
         if settings_payload:
             payload["settings"] = settings_payload
 
@@ -135,7 +146,7 @@ class VidBeeClient:
         if format_string:
             payload["format"] = format_string
 
-        settings_payload = self._runtime_settings()
+        settings_payload = await self._runtime_settings_async()
         if settings_payload:
             payload["settings"] = settings_payload
 
@@ -310,9 +321,14 @@ def humanize_error(category: str | None, fallback: str | None = None) -> str:
     )
     if "youtube" in lower and any(m in lower for m in youtube_auth_markers):
         return (
-            "Видео с возрастным ограничением или приватное.\n\n"
-            "Администратору: загрузите cookies YouTube в админке → "
-            "<b>Сервисы</b> → YouTube → «Загрузить cookies» → «Синхронизировать»."
+            "Видео с возрастным ограничением.\n\n"
+            "Cookies загружены, но YouTube их не принял — сессия устарела или "
+            "экспортирована неправильно.\n\n"
+            "<b>Как правильно:</b>\n"
+            "1. Инкогнито → войти на youtube.com\n"
+            "2. Открыть youtube.com/robots.txt\n"
+            "3. Экспорт cookies → загрузить в админке → Синхронизировать\n"
+            "4. Закрыть инкогнито и не заходить на YouTube в обычном браузере"
         )
 
     if any(m in lower for m in ("sign in", "login required", "cookies-from-browser", "use --cookies")):
